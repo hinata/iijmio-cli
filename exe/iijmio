@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require "iijmio/cli"
+
+::Iijmio::CLI::ImplementedCLI.start
