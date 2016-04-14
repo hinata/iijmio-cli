@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
+require "capybara"
+require "capybara/poltergeist"
+require "faraday"
 require "iijmio/cli/version"
+require "json"
+require "phantomjs"
+require "securerandom"
 require "thor"
+require "webrick"
+require "yaml"
 
 module ::Iijmio
   module CLI
@@ -128,10 +136,80 @@ module ::Iijmio
 =begin
   @function
 =end
+      desc %{logs}, %{No description.}
+      def logs *args
+        response =
+          ::Iijmio::CLI.get_iijmio_rest_api(%{/mobile/d/v1/log/packet/})
+
+        # FIXME
+        logs = {}
+
+        if ::File.exists?(::File.join(::Dir.home, %{.iijmio-logs}))
+          ::File.open ::File.join(::Dir.home, %{.iijmio-logs}), "rb" do | file |
+            logs = ::JSON.parse(file.read)
+          end
+        end
+        # FIXME
+
+=begin
+  + Family Share (ServiceCode: xxxx)
+=end
+
+        response[ %{packetLogInfo} ].each do | hdd_info |
+          plan   = hdd_info[ %{plan}   ]
+          hdd_service_code = hdd_info[ %{hddServiceCode} ]
+
+          logs[ hdd_service_code ] ||= {}
+
+          puts %{+ #{ plan } (ServiceCode: #{ hdd_service_code })}
+
+=begin
+  + SIMs
+   + ID: xxxx
+    - yyyymmdd 0.0 [MB] | 0.0 [MB]
+=end
+
+          puts %{+ SIMs}
+
+          hdd_info[ %{hdoInfo} ].each do | hdo_info |
+            hdo_service_code = hdo_info[ %{hdoServiceCode} ]
+            packet_logs      = hdo_info[ %{packetLog}      ]
+
+            logs[ hdd_service_code ][ hdo_service_code ] ||= {}
+
+            puts %{ + ID: #{ hdo_service_code }}
+
+            packet_logs.reverse.each_with_index do | packet_log, index |
+              date           = packet_log[ %{date}          ]
+              with_coupon    = packet_log[ %{withCoupon}    ]
+              without_coupon = packet_log[ %{withoutCoupon} ]
+
+              logs[ hdd_service_code ][ hdo_service_code ][ date ] = {
+                withCoupon: with_coupon,
+                withoutCoupon: without_coupon
+              }
+
+              puts %{      date   |    LTE    |  200Kbps } if index == 0
+              puts %{  ----------------------------------} if index == 0
+              puts %{  - #{ date } | #{ sprintf("%4d", with_coupon) } [MB] | #{ sprintf("%4d", without_coupon) } [MB]}
+            end
+          end
+        end
+
+        # FIXME
+        ::File.open ::File.join(::Dir.home, %{.iijmio-logs}), "wb" do | file |
+          file.write(logs.to_json)
+        end
+        # FIXME
+      end
+
+=begin
+  @function
+=end
       desc %{ls}, %{No description.}
       def ls *args
         response =
-          ::Iijmio::CLI.get_iijmio_rest_api
+          ::Iijmio::CLI.get_iijmio_rest_api(%{/mobile/d/v1/coupon/})
 
 =begin
   + Family Share (ServiceCode: xxxx)
@@ -192,7 +270,7 @@ module ::Iijmio
           exit 1
         end
 
-        ::Iijmio::CLI.put_iijmio_rest_api({
+        ::Iijmio::CLI.put_iijmio_rest_api(%{/mobile/d/v1/coupon/}, {
           couponInfo: [ { hdoInfo: [ { couponUse: coupon_use, hdoServiceCode: hdo_service_code } ] } ]
         })
       end
@@ -298,13 +376,13 @@ module ::Iijmio
   @static
 =end
     private
-    def self.get_iijmio_rest_api
+    def self.get_iijmio_rest_api url
       http_client = ::Faraday.new(url: %{https://api.iijmio.jp})
       http_client.headers[ :user_agent ] = ::Iijmio::CLI.user_agent
 
       response =
         http_client.get do | request |
-          request.url(%{/mobile/d/v1/coupon/})
+          request.url(url)
           request.headers[ %{X-IIJmio-Developer} ]     = ::Iijmio::CLI.get_config[ :developer_id ]
           request.headers[ %{X-IIJmio-Authorization} ] = ::Iijmio::CLI.get_config[ :token ]
           request.headers[ %{Content-Type} ] = %{application/json}
@@ -324,13 +402,13 @@ module ::Iijmio
   @static
 =end
     private
-    def self.put_iijmio_rest_api data = {}
+    def self.put_iijmio_rest_api url, data = {}
       http_client = ::Faraday.new(url: %{https://api.iijmio.jp})
       http_client.headers[ :user_agent ] = ::Iijmio::CLI.user_agent
 
       response =
         http_client.put do | request |
-          request.url(%{/mobile/d/v1/coupon/})
+          request.url(url)
           request.headers[ %{X-IIJmio-Developer} ]     = ::Iijmio::CLI.get_config[ :developer_id ]
           request.headers[ %{X-IIJmio-Authorization} ] = ::Iijmio::CLI.get_config[ :token ]
           request.headers[ %{Content-Type} ] = %{application/json}
