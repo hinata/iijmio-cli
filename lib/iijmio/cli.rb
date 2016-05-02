@@ -138,6 +138,8 @@ module ::Iijmio
 =end
       desc %{logs}, %{No description.}
       def logs *args
+        days = args[ 0 ] || 3
+
         response =
           ::Iijmio::CLI.get_iijmio_rest_api(%{/mobile/d/v1/log/packet/})
 
@@ -180,18 +182,20 @@ module ::Iijmio
             puts %{ + ID: #{ hdo_service_code }}
 
             packet_logs.reverse.each_with_index do | packet_log, index |
-              date           = packet_log[ %{date}          ]
-              with_coupon    = packet_log[ %{withCoupon}    ]
-              without_coupon = packet_log[ %{withoutCoupon} ]
+              if index < days.to_i
+                date           = packet_log[ %{date}          ]
+                with_coupon    = packet_log[ %{withCoupon}    ]
+                without_coupon = packet_log[ %{withoutCoupon} ]
 
-              logs[ hdd_service_code ][ hdo_service_code ][ date ] = {
-                withCoupon: with_coupon,
-                withoutCoupon: without_coupon
-              }
+                logs[ hdd_service_code ][ hdo_service_code ][ date ] = {
+                  withCoupon: with_coupon,
+                  withoutCoupon: without_coupon
+                }
 
-              puts %{      date   |    LTE    |  200Kbps } if index == 0
-              puts %{  ----------------------------------} if index == 0
-              puts %{  - #{ date } | #{ sprintf("%4d", with_coupon) } [MB] | #{ sprintf("%4d", without_coupon) } [MB]}
+                puts %{      date   |    LTE    |  200Kbps } if index == 0
+                puts %{  ----------------------------------} if index == 0
+                puts %{  - #{ date } | #{ sprintf("%4d", with_coupon) } [MB] | #{ sprintf("%4d", without_coupon) } [MB]}
+              end
             end
           end
         end
