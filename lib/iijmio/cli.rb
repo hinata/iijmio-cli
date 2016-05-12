@@ -138,7 +138,7 @@ module ::Iijmio
 =end
       desc %{logs}, %{No description.}
       def logs *args
-        days = args[ 0 ] || 3
+        days = args[ 0 ] || 4 # NOTE: 4 days
 
         response =
           ::Iijmio::CLI.get_iijmio_rest_api(%{/mobile/d/v1/log/packet/})
@@ -170,6 +170,8 @@ module ::Iijmio
    + ID: xxxx
     - yyyymmdd 0.0 [MB] | 0.0 [MB]
 =end
+          red_st = "\x1b[31m"
+          red_en = "\x1b[39m"
 
           puts %{+ SIMs}
 
@@ -181,22 +183,35 @@ module ::Iijmio
 
             puts %{ + ID: #{ hdo_service_code }}
 
+            with_coupon_total = 0
+            without_coupon_total = 0
+
             packet_logs.reverse.each_with_index do | packet_log, index |
               if index < days.to_i
                 date           = packet_log[ %{date}          ]
                 with_coupon    = packet_log[ %{withCoupon}    ]
                 without_coupon = packet_log[ %{withoutCoupon} ]
 
+                with_coupon_total += with_coupon
+                without_coupon_total += without_coupon
+
+                with_coupon_str          = %{#{ red_st if with_coupon          > 122 }#{ sprintf("%4d", with_coupon)          }#{ red_en if with_coupon          > 122 } [MB]}
+                with_coupon_total_str    = %{#{ red_st if with_coupon_total    > 366 }#{ sprintf("%4d", with_coupon_total)    }#{ red_en if with_coupon_total    > 366 } [MB]}
+                without_coupon_str       = %{#{ red_st if without_coupon       > 122 }#{ sprintf("%4d", without_coupon)       }#{ red_en if without_coupon       > 122 } [MB]}
+                without_coupon_total_str = %{#{ red_st if without_coupon_total > 366 }#{ sprintf("%4d", without_coupon_total) }#{ red_en if without_coupon_total > 366 } [MB]}
+
                 logs[ hdd_service_code ][ hdo_service_code ][ date ] = {
                   withCoupon: with_coupon,
                   withoutCoupon: without_coupon
                 }
 
-                puts %{      date   |    LTE    |  200Kbps } if index == 0
-                puts %{  ----------------------------------} if index == 0
-                puts %{  - #{ date } | #{ sprintf("%4d", with_coupon) } [MB] | #{ sprintf("%4d", without_coupon) } [MB]}
+                puts %{      date   |    LTE    |   total   |  200Kbps  |   total  } if index == 0
+                puts %{  ----------------------------------------------------------} if index == 0
+                puts %{  - #{ date } | #{ with_coupon_str } | #{ with_coupon_total_str } | #{ without_coupon_str } | #{ without_coupon_total_str }}
               end
             end
+
+            puts %{}
           end
         end
 
